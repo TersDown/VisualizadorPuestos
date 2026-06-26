@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visualizador Electoral — Puestos de Votación | Demos-UR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  /* ─── TOKENS ─── */
+  :root {
+    --rojo:      #AC2F23;
+    --rojo-dark: #8C1F15;
+    --rojo-light:#C84035;
+    --morado:    #5B3FA0;   /* Cepeda */
+    --naranja:   #E07020;   /* ADLE   */
+    --gris-bg:   #F7F5F2;
+    --gris-brd:  #D9D4CC;
+    --gris-txt:  #4A4540;
+    --blanco:    #FFFFFF;
+    --sombra:    0 2px 12px rgba(0,0,0,0.12);
+  }
+ 
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    font-family: 'Source Sans 3', 'Source Sans Pro', sans-serif;
+    background: var(--gris-bg);
+    color: var(--gris-txt);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+ 
+  /* ─── HEADER ─── */
+  header {
+    background: var(--rojo);
+    color: var(--blanco);
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 56px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    flex-shrink: 0;
+  }
+  header .logo-slot {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  header .logo-slot img,
+  header .logo-slot svg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+  }
+  header .header-text h1 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  header .header-text p {
+    font-size: 11.5px;
+    font-weight: 300;
+    opacity: 0.88;
+    letter-spacing: 0.03em;
+  }
+ 
+  /* ─── CONTROLES ─── */
+  .controls {
+    background: var(--blanco);
+    border-bottom: 1px solid var(--gris-brd);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 200px;
+  }
+  .control-group label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--rojo);
+  }
+  .control-group select {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 13.5px;
+    padding: 6px 10px;
+    border: 1.5px solid var(--gris-brd);
+    border-radius: 5px;
+    background: var(--gris-bg);
+    color: var(--gris-txt);
+    cursor: pointer;
+    transition: border-color 0.15s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23AC2F23' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+  }
+  .control-group select:focus {
+    outline: none;
+    border-color: var(--rojo);
+  }
+ 
+  /* ─── LEYENDA CANDIDATOS ─── */
+  .legend-candidatos {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .legend-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.12);
+  }
+ 
+  /* ─── MAPA ─── */
+  #map {
+    flex: 1;
+    min-height: 380px;
+    z-index: 1;
+  }
+ 
+  /* ─── TOOLTIP LEAFLET personalizado ─── */
+  .leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 13px;
+    box-shadow: var(--sombra);
+    padding: 0;
+    overflow: hidden;
+  }
+  .leaflet-popup-content {
+    margin: 0;
+    min-width: 200px;
+  }
+  .popup-header {
+    background: var(--rojo);
+    color: white;
+    padding: 8px 12px;
+    font-weight: 700;
+    font-size: 13.5px;
+    line-height: 1.3;
+  }
+  .popup-body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .popup-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12.5px;
+  }
+  .popup-row .lbl { color: #888; }
+  .popup-row .val { font-weight: 600; color: var(--gris-txt); }
+  .popup-ganador {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--gris-brd);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+  }
+  .popup-ganador .dot {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .popup-ganador .gname { font-weight: 700; }
+ 
+  /* ─── FOOTER ─── */
+  footer {
+    background: var(--blanco);
+    border-top: 1px solid var(--gris-brd);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .footer-logo-slot {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .footer-logo-slot img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+  }
+  .footer-center {
+    text-align: center;
+    flex: 1;
+  }
+  .footer-center p {
+    font-size: 12px;
+    color: #999;
+  }
+  .footer-center p strong {
+    color: var(--rojo);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .footer-right {
+    text-align: right;
+    font-size: 11px;
+    color: #bbb;
+  }
+  .footer-right a {
+    color: var(--rojo);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .footer-right a:hover { text-decoration: underline; }
+ 
+  /* ─── INFO-BOX cuando no hay municipio seleccionado ─── */
+  #info-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.95);
+    border: 1.5px solid var(--gris-brd);
+    border-radius: 10px;
+    padding: 22px 28px;
+    text-align: center;
+    box-shadow: var(--sombra);
+    z-index: 500;
+    pointer-events: none;
+    max-width: 280px;
+  }
+  #info-overlay .icon { font-size: 28px; margin-bottom: 8px; }
+  #info-overlay p { font-size: 13px; color: #888; line-height: 1.6; }
+  #info-overlay strong { color: var(--rojo); }
+  #map-wrap { position: relative; flex: 1; display: flex; flex-direction: column; }
+</style>
+</head>
+<body>
+ 
+<div class="controls">
+  <div class="control-group">
+    <label for="departamento">Departamento</label>
+    <select id="departamento">
+      <option value="">Seleccione un departamento</option>
+    </select>
+  </div>
+  <div class="control-group">
+    <label for="municipio">Municipio</label>
+    <select id="municipio" disabled>
+      <option value="">Seleccione un municipio</option>
+    </select>
+  </div>
+  <div class="legend-candidatos">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#5B3FA0;"></div>
+      <span>Iván Cepeda Castro</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#E07020;"></div>
+      <span>Abelardo De la Espriella</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#888888;"></div>
+      <span>Empate / sin datos</span>
+    </div>
+  </div>
+</div>
+ 
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="info-overlay">
+    <div class="icon">🗺️</div>
+    <p>Selecciona un <strong>departamento</strong> y un <strong>municipio</strong> para ver los puestos de votación.</p>
+    <p style="margin-top:8px;font-size:11px;color:#bbb;">El tamaño y color de cada punto indica votos totales y candidato ganador.</p>
+  </div>
+</div>
+ 
+<footer>
+  <div class="footer-logo-slot">
+    <img src="logo.svg" alt="Demos-UR" style="width:48px;height:48px;object-fit:contain;">
+  </div>
+  <div class="footer-center">
+    <p>Elaborado por: <strong>Martín Trujillo</strong></p>
+    <p style="margin-top:2px;">Grupo de Estudios de la Democracia &mdash; Universidad del Rosario</p>
+  </div>
+  <div class="footer-right">
+    <a href="https://procesoselectorales.org" target="_blank" rel="noopener">procesoselectorales.org</a><br>
+    <span>Fuente: Registraduría Nacional · 2026</span>
+  </div>
+</footer>
+ 
+<script>
+/* ── Colores candidatos ── */
+const COLORES_CANDIDATOS = {
+  "IVÁN CEPEDA CASTRO":           "#5B3FA0",
+  "IVAN CEPEDA CASTRO":           "#5B3FA0",
+  "ABELARDO DE LA ESPRIELLA":     "#E07020",
+  "ABELARDO DE LA ESPRIELLA MBE": "#E07020",
+};
+const COLOR_DEFAULT = "#888888";
+ 
+function colorCandidato(nombre) {
+  if (!nombre) return COLOR_DEFAULT;
+  const n = nombre.toUpperCase().trim();
+  if (n.includes("CEPEDA"))    return "#5B3FA0";
+  if (n.includes("ESPRIELLA")) return "#E07020";
+  return COLOR_DEFAULT;
+}
+ 
+function normalizeText(str) {
+  if (!str) return "";
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+}
+ 
+function fmt(n) {
+  return (n || 0).toLocaleString("es-CO");
+}
+ 
+/* ── Descompresión de archivos .gz ── */
+async function fetchAndDecompressGzip(url) {
+  /*
+   * Maneja dos escenarios según el servidor:
+   * A) Servidor estático local / GitHub Pages sin Content-Encoding:
+   *    El archivo llega como bytes gzip crudos → DecompressionStream los descomprime.
+   * B) Vercel / CDN con Content-Encoding: gzip:
+   *    El navegador descomprime automáticamente antes de que fetch() lo vea.
+   *    El body ya llega como JSON plano → parsear directamente.
+   *
+   * Estrategia: intentar descompresión manual; si falla, tratar el body como JSON.
+   */
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    // Verificar si el servidor ya descomprimió (CDN/Vercel con Content-Encoding: gzip)
+    const encoding = response.headers.get('Content-Encoding');
+    if (encoding && encoding.includes('gzip')) {
+      // El navegador ya descomprimió; el body es JSON plano
+      const text = await response.text();
+      return JSON.parse(text);
+    }
+
+    // Intentar descompresión manual con DecompressionStream
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    // Detectar magic bytes de gzip (0x1F 0x8B) para confirmar que sí es gzip
+    if (bytes[0] === 0x1F && bytes[1] === 0x8B) {
+      const decompressedStream = new Response(
+        new Blob([arrayBuffer]).stream().pipeThrough(new DecompressionStream('gzip'))
+      );
+      const text = await decompressedStream.text();
+      return JSON.parse(text);
+    } else {
+      // El body llegó descomprimido (CDN transparente sin cabecera explícita)
+      const text = new TextDecoder().decode(bytes);
+      return JSON.parse(text);
+    }
+  } catch (err) {
+    console.warn('[fetchAndDecompressGzip] Error con', url, err);
+    // Último recurso: fetch limpio tratando el body como JSON plano
+    try {
+      const r2 = await fetch(url);
+      if (!r2.ok) return null;
+      const text = await r2.text();
+      return JSON.parse(text);
+    } catch (err2) {
+      console.error('[fetchAndDecompressGzip] Fallo total en', url, err2);
+      return null;
+    }
+  }
+}
+ 
+/* ── Mapa ── */
+const map = L.map('map', { zoomControl: true }).setView([4.57, -74.29], 6);
+ 
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© <a href="https://carto.com">CARTO</a> · © <a href="https://openstreetmap.org">OSM</a>',
+  maxZoom: 19
+}).addTo(map);
+ 
+const marcadores = L.layerGroup().addTo(map);
+let municipioLayer = null;
+let cabeceraLayer  = null;
+let municipiosGeo  = null;
+let cabecerasGeo   = null;
+let datosGlobales  = null;
+let depMunACodmpio = {};
+ 
+const infoOverlay = document.getElementById('info-overlay');
+const depSelect   = document.getElementById('departamento');
+const munSelect   = document.getElementById('municipio');
+ 
+/* ── Carga inicial de datos ── */
+Promise.all([
+  fetch('datos_puestos.json').then(r => r.json()),
+  fetchAndDecompressGzip('municipios.geojson.gz'),
+  fetchAndDecompressGzip('cabecera.geojson.gz')
+])
+.then(([data, geojson, cabeceras]) => {
+  datosGlobales = data;
+  municipiosGeo = geojson;
+  cabecerasGeo  = cabeceras;
+ 
+  data.forEach(p => {
+    if (!p.codmpio || !p.DEPNOMBRE || !p.MUNNOMBRE) return;
+    const clave = normalizeText(p.DEPNOMBRE) + "|" + normalizeText(p.MUNNOMBRE);
+    if (!depMunACodmpio[clave]) {
+      depMunACodmpio[clave] = p.codmpio;
+    }
+  });
+ 
+  const deps = [...new Set(data.map(d => d.DEPNOMBRE).filter(Boolean))].sort();
+  deps.forEach(dep => {
+    const opt = document.createElement('option');
+    opt.value = dep;
+    opt.textContent = dep;
+    depSelect.appendChild(opt);
+  });
+ 
+  depSelect.addEventListener('change', function () {
+    const dep = this.value;
+    munSelect.innerHTML = '<option value="">Seleccione un municipio</option>';
+    munSelect.disabled = !dep;
+    limpiarMapa();
+ 
+    if (!dep) {
+      infoOverlay.style.display = "";
+      return;
+    }
+ 
+    const munis = [...new Set(
+      data.filter(d => d.DEPNOMBRE === dep).map(d => d.MUNNOMBRE).filter(Boolean)
+    )].sort();
+    munis.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      munSelect.appendChild(opt);
+    });
+  });
+ 
+  munSelect.addEventListener('change', function () {
+    const dep = depSelect.value;
+    const mun = this.value;
+    if (!dep || !mun) return;
+    cargarMunicipio(dep, mun, data);
+  });
+})
+.catch(err => {
+  console.error(err);
+});
+ 
+function limpiarMapa() {
+  marcadores.clearLayers();
+  if (municipioLayer) { map.removeLayer(municipioLayer); municipioLayer = null; }
+  if (cabeceraLayer)  { map.removeLayer(cabeceraLayer);  cabeceraLayer  = null; }
+}
+ 
+function cargarMunicipio(dep, mun, data) {
+  limpiarMapa();
+  infoOverlay.style.display = "none";
+ 
+  const puestos = data.filter(d => d.DEPNOMBRE === dep && d.MUNNOMBRE === mun);
+  if (!puestos.length) return;
+ 
+  const claveNormalizada = normalizeText(dep) + "|" + normalizeText(mun);
+  const codmpio = depMunACodmpio[claveNormalizada];
+ 
+  if (municipiosGeo && codmpio) {
+    const feat = municipiosGeo.features.find(f => f.properties.codmpio === codmpio);
+    if (feat) {
+      municipioLayer = L.geoJSON(feat, {
+        style: {
+          color: "#2C3E50",
+          weight: 2.5,
+          fillColor: "#2C3E50",
+          fillOpacity: 0.07,
+          dashArray: null
+        }
+      }).addTo(map);
+    }
+  }
+ 
+  let zoomTarget = null;
+  if (cabecerasGeo && codmpio) {
+    const cabFeat = cabecerasGeo.features.find(f => f.properties.codmpio === codmpio);
+    if (cabFeat) {
+      cabeceraLayer = L.geoJSON(cabFeat, {
+        style: {
+          color: "#2E7D52",
+          weight: 2,
+          fillColor: "#3DAA6E",
+          fillOpacity: 0.18,
+          dashArray: "5 4"
+        }
+      }).addTo(map);
+      zoomTarget = cabeceraLayer;
+    }
+  }
+ 
+  const totales   = puestos.map(p => p.total_votos || 0);
+  const maxVotos  = Math.max(...totales, 1);
+  const minRadius = 5;
+  const maxRadius = 22;
+ 
+  puestos.forEach(p => {
+    if (!p.Latitud || !p.Longitud) return;
+ 
+    const color  = colorCandidato(p.ganador);
+    const ratio  = Math.sqrt((p.total_votos || 0) / maxVotos);
+    const radius = minRadius + ratio * (maxRadius - minRadius);
+ 
+    const marker = L.circleMarker([p.Latitud, p.Longitud], {
+      radius,
+      color:       color,
+      fillColor:   color,
+      fillOpacity: 0.78,
+      weight:      1.5,
+      opacity:     0.9
+    });
+ 
+    const dotColor = colorCandidato(p.ganador);
+    const popup = `
+      <div class="popup-header">${p.PUESNOMBRE || 'Puesto sin nombre'}</div>
+      <div class="popup-body">
+        <div class="popup-row">
+          <span class="lbl">Departamento</span>
+          <span class="val">${p.DEPNOMBRE || '—'}</span>
+        </div>
+        <div class="popup-row">
+          <span class="lbl">Municipio</span>
+          <span class="val">${p.MUNNOMBRE || '—'}</span>
+        </div>
+        <div class="popup-row">
+          <span class="lbl">Código puesto</span>
+          <span class="val">${p.codigo_puesto || '—'}</span>
+        </div>
+        <div class="popup-row">
+          <span class="lbl">Total votos</span>
+          <span class="val">${fmt(p.total_votos)}</span>
+        </div>
+        <div class="popup-row">
+          <span class="lbl">Votos ganador</span>
+          <span class="val">${fmt(p.votos_ganador)}</span>
+        </div>
+        <div class="popup-ganador">
+          <div class="dot" style="background:${dotColor};"></div>
+          <span class="gname">${p.ganador || 'Sin datos'}</span>
+        </div>
+      </div>`;
+    marker.bindPopup(popup, { maxWidth: 260 });
+    marker.on('mouseover', function () { this.openPopup(); });
+    marker.addTo(marcadores);
+  });
+ 
+  if (zoomTarget) {
+    map.fitBounds(zoomTarget.getBounds(), { padding: [40, 40] });
+  } else if (municipioLayer) {
+    map.fitBounds(municipioLayer.getBounds(), { padding: [30, 30] });
+  } else {
+    const coords = puestos.filter(p => p.Latitud && p.Longitud).map(p => [p.Latitud, p.Longitud]);
+    if (coords.length) map.fitBounds(coords, { padding: [30, 30] });
+  }
+}
+</script>
+</body>
+</html>
